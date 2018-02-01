@@ -1,6 +1,5 @@
 
 from requests_oauthlib import OAuth1Session
-from requests_oauthlib import OAuth1
 import secrets
 
 client_key = secrets.client_key
