@@ -1,6 +1,7 @@
 
 from requests_oauthlib import OAuth1Session
 import secrets
+import json
 
 client_key = secrets.client_key
 client_secret = secrets.client_secret
@@ -77,16 +78,54 @@ print(resource_owner_key, resource_owner_secret)
 # Note that we have to pass in our client key and secret (this belongs to
 # our application) and the "resource owner" key and secret (this belongs
 # to the user that we just logged in)
-protected_url = 'https://api.twitter.com/1.1/account/settings.json'
+#protected_url = 'https://api.twitter.com/1.1/account/settings.json'
 
 oauth = OAuth1Session(client_key,
                           client_secret=client_secret,
                           resource_owner_key=resource_owner_key,
                           resource_owner_secret=resource_owner_secret)
-r = oauth.get(protected_url)
-print (r.text)
+
+CACHE_FNAME = 'tweet.json'
+try:
+    cache_file = open(CACHE_FNAME,'r')
+    cache_contents = cache_file.read()
+    CACHE_DICTION = json.loads(cache_contents)
+    cache_file.close()
+except:
+    CACHE_DICTION = {}
+
+
+def params_unique_combination(baseurl, params):
+    alphabetized_keys = sorted(params.keys())
+    res = []
+    for k in alphabetized_keys:
+        res.append("{}-{}".format(k, params[k]))
+    return baseurl + "_".join(res)
+
+
+def make_request_using_cache(baseurl, params):
+    unique_ident = params_unique_combination(baseurl,params)
+
+    ## first, look in the cache to see if we already have this data
+    if unique_ident in CACHE_DICTION:
+        print("Getting cached data...")
+        return CACHE_DICTION[unique_ident]
+
+    ## if not, fetch the data afresh, add it to the cache,
+    ## then write the cache to file
+    else:
+        print("Making a request for new data...")
+        # Make the request and cache the new data
+        resp = oauth.get(protected_url, params=params)
+        CACHE_DICTION[unique_ident] = json.loads(resp.text)
+        dumped_json_cache = json.dumps(CACHE_DICTION)
+        fw = open(CACHE_FNAME,"w")
+        fw.write(dumped_json_cache)
+        fw.close() # Close the open file
+        return CACHE_DICTION[unique_ident]
 
 protected_url = 'https://api.twitter.com/1.1/search/tweets.json'
 params = {'q':'food'}
-r = oauth.get(protected_url, params=params)
-print (r.text)
+tweet_dict = make_request_using_cache(protected_url,params)
+for status in tweet_dict['statuses']:
+    print("{} tweeted by: {}".format(status['text'], status['user']['name']))
